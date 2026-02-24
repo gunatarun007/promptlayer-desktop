@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#818CF8"/>
+      <stop offset="100%" stop-color="#6366F1"/>
+    </linearGradient>
+    <linearGradient id="g2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6366F1"/>
+      <stop offset="100%" stop-color="#4F46E5"/>
+    </linearGradient>
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="2" stdDeviation="6" flood-color="#818CF8" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+  <!-- Background -->
+  <rect width="256" height="256" rx="48" fill="#0F172A"/>
+  <!-- Layer 3 (bottom) -->
+  <polygon points="128,180 200,140 128,100 56,140" fill="#4F46E5" opacity="0.5"/>
+  <!-- Layer 2 (middle) -->
+  <polygon points="128,155 200,115 128,75 56,115" fill="url(#g2)" opacity="0.75" filter="url(#shadow)"/>
+  <!-- Layer 1 (top) -->
+  <polygon points="128,130 200,90 128,50 56,90" fill="url(#g1)" filter="url(#shadow)"/>
+  <!-- Highlight line -->
+  <line x1="56" y1="90" x2="128" y2="50" stroke="#A5B4FC" stroke-width="1.5" opacity="0.6"/>
+  <line x1="128" y1="50" x2="200" y2="90" stroke="#A5B4FC" stroke-width="1.5" opacity="0.4"/>
+</svg>

@@ -1,0 +1,54 @@
+{
+    "name": "promptlayer-desktop",
+    "version": "1.0.0",
+    "description": "System-wide AI prompt enhancer. Summon anywhere, enhance instantly.",
+    "main": "main.js",
+    "author": "PromptLayer <hello@promptlayer.app>",
+    "license": "MIT",
+    "private": true,
+    "scripts": {
+        "start": "electron .",
+        "build": "electron-builder",
+        "build:win": "electron-builder --win"
+    },
+    "dependencies": {
+        "electron-store": "^8.1.0"
+    },
+    "devDependencies": {
+        "electron": "^28.0.0",
+        "electron-builder": "^24.9.1"
+    },
+    "build": {
+        "appId": "in.vike.promptlayer",
+        "productName": "PromptLayer",
+        "directories": {
+            "output": "dist"
+        },
+        "files": [
+            "main.js",
+            "preload.js",
+            "lib/**/*",
+            "renderer/**/*",
+            "assets/**/*",
+            "!node_modules/.cache"
+        ],
+        "win": {
+            "target": [
+                "nsis",
+                "portable"
+            ],
+            "icon": "assets/icon.png",
+            "signAndEditExecutable": false,
+            "forceCodeSigning": false
+        },
+        "nsis": {
+            "oneClick": true,
+            "perMachine": false,
+            "allowToChangeInstallationDirectory": false,
+            "deleteAppDataOnUninstall": true
+        },
+        "portable": {
+            "artifactName": "PromptLayer-Portable-${version}.exe"
+        }
+    }
+}
