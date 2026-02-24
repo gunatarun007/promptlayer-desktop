@@ -1,19 +1,18 @@
 /**
  * PromptLayer Desktop — Main Process
- * 
- * Production-hardened Electron main process.
- * Manages a single frameless floating window, global shortcut registration,
- * clipboard-based auto-capture/insert, and routes all optimization calls
- * through a single pipeline in lib/optimizer.js.
  *
- * Security model:
- * - contextIsolation: true, sandbox: true, nodeIntegration: false
- * - API keys stored encrypted via electron-store (never in renderer)
- * - No devtools in production
- * - IPC-only communication between processes
+ * Production-hardened Electron main process.
+ * Manages a single floating prompt window, system tray,
+ * global shortcut, clipboard-based auto-capture/insert,
+ * and routes all optimization through lib/optimizer.js.
+ *
+ * First-run: window opens immediately into Settings view.
+ * Returning user: window stays hidden, activated via global shortcut.
+ *
+ * Security: contextIsolation + sandbox + encrypted store + no devtools (prod)
  */
 
-const { app, BrowserWindow, globalShortcut, ipcMain, clipboard, screen, nativeTheme } = require('electron');
+const { app, BrowserWindow, globalShortcut, ipcMain, clipboard, screen, nativeTheme, Tray, Menu, nativeImage } = require('electron');
 const path = require('path');
 const os = require('os');
 
@@ -32,6 +31,9 @@ const Store = require('electron-store');
 const { optimizePrompt } = require('./lib/optimizer');
 
 const IS_DEV = !app.isPackaged;
+
+// ─── Windows App Identity ───────────────────────────────────────────────────
+app.setAppUserModelId('in.vike.promptlayer');
 
 // ─── Settings Store ─────────────────────────────────────────────────────────
 const DEFAULT_SHORTCUT = process.platform === 'darwin' ? 'Command+Shift+Space' : 'Ctrl+Shift+L';
@@ -54,12 +56,24 @@ if (storedShortcut === 'Ctrl+Shift+Space' || storedShortcut === 'CommandOrContro
     store.set('shortcut', DEFAULT_SHORTCUT);
 }
 
-// ─── Window ─────────────────────────────────────────────────────────────────
+// ─── State ──────────────────────────────────────────────────────────────────
 let mainWindow = null;
+let tray = null;
+let activeShortcut = '';
+
 const WIN_W = 420;
 const WIN_H = 520;
 
+// ─── First-run detection ────────────────────────────────────────────────────
+function isFirstRun() {
+    const key = store.get('apiKey');
+    return !key || key.length < 10;
+}
+
+// ─── Main Window ────────────────────────────────────────────────────────────
 function createWindow() {
+    if (mainWindow) return;
+
     const { width, height } = screen.getPrimaryDisplay().workAreaSize;
 
     mainWindow = new BrowserWindow({
@@ -70,11 +84,12 @@ function createWindow() {
         frame: false,
         transparent: true,
         resizable: false,
-        skipTaskbar: true,
+        skipTaskbar: false,
         alwaysOnTop: true,
         show: false,
         hasShadow: false,
         title: 'PromptLayer',
+        icon: path.join(__dirname, 'assets', 'icon.ico'),
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             contextIsolation: true,
@@ -93,18 +108,54 @@ function createWindow() {
         }
     });
 
-    mainWindow.on('blur', () => {
-        if (mainWindow && mainWindow.isVisible()) hideWindow();
-    });
+    mainWindow.on('closed', () => { mainWindow = null; });
 
     nativeTheme.themeSource = 'dark';
+}
+
+// ─── System Tray ────────────────────────────────────────────────────────────
+function createTray() {
+    if (tray) return;
+
+    const iconPath = path.join(__dirname, 'assets', 'icon.png');
+    let trayImage = nativeImage.createFromPath(iconPath);
+    trayImage = trayImage.resize({ width: 16, height: 16 });
+
+    tray = new Tray(trayImage);
+    tray.setToolTip('PromptLayer');
+
+    const contextMenu = Menu.buildFromTemplate([
+        {
+            label: 'Open PromptLayer',
+            click: () => showWindow(),
+        },
+        {
+            label: 'Settings',
+            click: () => {
+                showWindow();
+                if (mainWindow) {
+                    mainWindow.webContents.send('navigate:settings');
+                }
+            },
+        },
+        { type: 'separator' },
+        {
+            label: 'Quit',
+            click: () => {
+                app.isQuitting = true;
+                app.quit();
+            },
+        },
+    ]);
+
+    tray.setContextMenu(contextMenu);
+    tray.on('click', () => toggleWindow());
 }
 
 // ─── Show / Hide ────────────────────────────────────────────────────────────
 function showWindow() {
     if (!mainWindow) createWindow();
 
-    // Center on the screen nearest the cursor
     const cursor = screen.getCursorScreenPoint();
     const display = screen.getDisplayNearestPoint(cursor);
     const { x, y, width, height } = display.workArea;
@@ -113,9 +164,16 @@ function showWindow() {
         Math.round(y + (height - WIN_H) / 2)
     );
 
+    // Appear above everything, then settle to normal stacking
+    mainWindow.setAlwaysOnTop(true, 'screen-saver');
     mainWindow.show();
+    mainWindow.setSkipTaskbar(false); // Fixes Windows transparent window bug
     mainWindow.focus();
     mainWindow.webContents.send('window:shown');
+
+    setTimeout(() => {
+        if (mainWindow) mainWindow.setAlwaysOnTop(false);
+    }, 2000);
 }
 
 function hideWindow() {
@@ -127,15 +185,17 @@ function hideWindow() {
 
 function toggleWindow() {
     if (mainWindow && mainWindow.isVisible()) {
-        hideWindow();
+        if (mainWindow.isFocused()) {
+            hideWindow();
+        } else {
+            showWindow();
+        }
     } else {
         showWindow();
     }
 }
 
 // ─── Global Shortcut ────────────────────────────────────────────────────────
-let activeShortcut = '';
-
 function registerShortcut() {
     const primary = store.get('shortcut', DEFAULT_SHORTCUT);
     const candidates = [primary, 'Alt+P', 'Ctrl+Shift+P'];
@@ -152,7 +212,7 @@ function registerShortcut() {
     }
 }
 
-// ─── IPC: Optimization ──────────────────────────────────────────────────────
+// ─── IPC: Optimization ─────────────────────────────────────────────────────
 ipcMain.handle('optimize', async (_e, { rawPrompt, instruction }) => {
     try {
         const config = {
@@ -174,12 +234,8 @@ ipcMain.handle('copy-text', async (_e, text) => {
     return true;
 });
 
-// Read clipboard (for auto-capture on shortcut open)
-ipcMain.handle('read-clipboard', async () => {
-    return clipboard.readText();
-});
+ipcMain.handle('read-clipboard', async () => clipboard.readText());
 
-// Insert text: write to clipboard → hide window → simulate Ctrl+V
 ipcMain.handle('insert-text', async (_e, text) => {
     clipboard.writeText(text);
     hideWindow();
@@ -188,9 +244,7 @@ ipcMain.handle('insert-text', async (_e, text) => {
     return true;
 });
 
-// Simulate Ctrl+C on the previously focused app (capture selected text)
 ipcMain.handle('simulate-copy', async () => {
-    // We need a brief pause to let the previous app retain focus
     await sleep(80);
     simulateCopy();
     await sleep(80);
@@ -211,10 +265,20 @@ ipcMain.handle('save-settings', async (_e, s) => {
     if (s.apiKey !== undefined) store.set('apiKey', s.apiKey);
     if (s.model !== undefined) store.set('model', s.model);
     if (s.apiBase !== undefined) store.set('apiBase', s.apiBase);
-    return true;
+    if (s.shortcut !== undefined) {
+        store.set('shortcut', s.shortcut);
+    }
+
+    // If API key was just saved and shortcut isn't registered, register it now
+    if (s.apiKey && s.apiKey.length >= 10 && !activeShortcut) {
+        registerShortcut();
+    }
+
+    return { success: true, shortcut: activeShortcut || store.get('shortcut') };
 });
 
 ipcMain.on('window:close', () => hideWindow());
+ipcMain.on('window:hide', () => hideWindow());
 
 // ─── Keystroke simulation (PowerShell-based, no native deps) ────────────────
 function simulatePaste() {
@@ -242,14 +306,26 @@ function sleep(ms) {
 // ─── App Lifecycle ──────────────────────────────────────────────────────────
 app.whenReady().then(() => {
     createWindow();
-    registerShortcut();
+    createTray();
+
+    if (isFirstRun()) {
+        // First launch: show window immediately into settings
+        mainWindow.webContents.once('did-finish-load', () => {
+            mainWindow.show();
+            mainWindow.focus();
+            mainWindow.webContents.send('first-run');
+        });
+    } else {
+        // Returning user: register shortcut, stay hidden
+        registerShortcut();
+    }
 });
 
 app.on('will-quit', () => globalShortcut.unregisterAll());
 app.on('before-quit', () => { app.isQuitting = true; });
 
 app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') app.quit();
+    if (!tray) app.quit();
 });
 
 app.on('activate', () => {

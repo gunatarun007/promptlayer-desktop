@@ -1,6 +1,6 @@
 {
     "name": "promptlayer-desktop",
-    "version": "1.0.0",
+    "version": "1.1.1",
     "description": "System-wide AI prompt enhancer. Summon anywhere, enhance instantly.",
     "main": "main.js",
     "author": "PromptLayer <hello@promptlayer.app>",
@@ -37,15 +37,15 @@
                 "nsis",
                 "portable"
             ],
-            "icon": "assets/icon.png",
-            "signAndEditExecutable": false,
+            "icon": "assets/icon.ico",
             "forceCodeSigning": false
         },
         "nsis": {
             "oneClick": true,
             "perMachine": false,
             "allowToChangeInstallationDirectory": false,
-            "deleteAppDataOnUninstall": true
+            "deleteAppDataOnUninstall": true,
+            "runAfterFinish": true
         },
         "portable": {
             "artifactName": "PromptLayer-Portable-${version}.exe"

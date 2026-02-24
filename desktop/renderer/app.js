@@ -3,6 +3,9 @@
  *
  * All UI logic. Communicates with main process exclusively through
  * window.promptlayer bridge. Zero direct Node/Electron access.
+ *
+ * API validation is always sourced from main process via getSettings().
+ * Renderer NEVER validates based on local UI state alone.
  */
 
 (function () {
@@ -34,10 +37,18 @@
     const setApiKey = $('set-apikey');
     const setModel = $('set-model');
     const setApiBase = $('set-apibase');
+    const welcome = $('pl-welcome');
+    const settingsHeader = $('pl-settings-header');
+    const apikeyError = $('pl-apikey-error');
+    const tooltip = $('pl-tooltip');
+    const tooltipText = $('pl-tooltip-text');
+    const tooltipClose = $('pl-tooltip-close');
 
     // ─── State ───────────────────────────────────────────────────────────
     let optimizedText = '';
     let isProcessing = false;
+    let isFirstRun = false;
+    let hasValidKey = false;
 
     const PROVIDER_CONFIG = {
         openai: { base: 'https://api.openai.com/v1', placeholder: 'sk-...' },
@@ -63,17 +74,36 @@
         toastTimer = setTimeout(() => toastEl.classList.remove('visible'), 2500);
     }
 
-    // ─── Status ──────────────────────────────────────────────────────────
+    // ─── Status (reflects real stored state) ─────────────────────────────
     function setStatus(state, text) {
         statusDot.className = 'pl-status-dot' + (state !== 'ready' ? ` ${state}` : '');
         statusText.textContent = text;
     }
 
+    async function refreshStatus() {
+        const s = await window.promptlayer.getSettings();
+        hasValidKey = s.apiKey && s.apiKey.length >= 10;
+        if (s.shortcut) shortcutHint.textContent = s.shortcut;
+
+        if (hasValidKey) {
+            setStatus('ready', 'Connected');
+        } else {
+            setStatus('error', 'API key missing');
+        }
+
+        updateEnhanceButton();
+    }
+
+    // ─── Enhance button gate ─────────────────────────────────────────────
+    function updateEnhanceButton() {
+        const hasText = input.value.length >= 3;
+        btnEnhance.disabled = !hasText || !hasValidKey;
+    }
+
     // ─── Input ───────────────────────────────────────────────────────────
     input.addEventListener('input', () => {
-        const len = input.value.length;
-        charCount.textContent = len;
-        btnEnhance.disabled = len < 3;
+        charCount.textContent = input.value.length;
+        updateEnhanceButton();
     });
 
     input.addEventListener('keydown', (e) => {
@@ -86,7 +116,7 @@
     // ─── Chips ───────────────────────────────────────────────────────────
     chipsContainer.addEventListener('click', (e) => {
         const chip = e.target.closest('.pl-chip');
-        if (!chip || isProcessing) return;
+        if (!chip || isProcessing || !hasValidKey) return;
         const raw = input.value.trim();
         if (raw.length < 3) return;
         runOptimization(raw, chip.dataset.instruction);
@@ -94,7 +124,7 @@
 
     // ─── Enhance ─────────────────────────────────────────────────────────
     btnEnhance.addEventListener('click', () => {
-        if (isProcessing) return;
+        if (isProcessing || !hasValidKey) return;
         const raw = input.value.trim();
         if (raw.length < 3) return;
         runOptimization(raw, 'enhance');
@@ -118,8 +148,8 @@
                 optimizedText = result.data;
                 resultBody.textContent = optimizedText;
                 resultArea.classList.add('visible');
-                setStatus('ready', 'Enhanced ✓');
-                showToast('Prompt enhanced', 'success');
+                setStatus('ready', 'Connected');
+                showToast('Prompt enhanced ✓', 'success');
             } else {
                 setStatus('error', result.error || 'Failed');
                 showToast(result.error || 'Optimization failed', 'error');
@@ -160,16 +190,35 @@
         runOptimization(optimizedText, 'enhance');
     });
 
-    // ─── Navigation ──────────────────────────────────────────────────────
+    // ─── View Navigation ─────────────────────────────────────────────────
     function showView(target) {
         viewMain.classList.remove('active');
         viewSettings.classList.remove('active');
         target.classList.add('active');
     }
 
-    btnSettings.addEventListener('click', () => { loadSettings(); showView(viewSettings); });
-    btnBack.addEventListener('click', () => showView(viewMain));
-    btnClose.addEventListener('click', () => window.promptlayer.closeWindow());
+    function openSettings() {
+        loadSettings();
+        if (isFirstRun) {
+            welcome.style.display = '';
+            settingsHeader.style.display = 'none';
+        } else {
+            welcome.style.display = 'none';
+            settingsHeader.style.display = '';
+        }
+        showView(viewSettings);
+    }
+
+    btnSettings.addEventListener('click', openSettings);
+    window.promptlayer.onNavigateSettings(openSettings);
+
+    btnBack.addEventListener('click', () => {
+        // Prevent going back to main if no key configured (first-run)
+        if (isFirstRun && !hasValidKey) return;
+        showView(viewMain);
+    });
+
+    btnClose.addEventListener('click', () => window.promptlayer.hide());
 
     // ─── Settings ────────────────────────────────────────────────────────
     async function loadSettings() {
@@ -182,6 +231,9 @@
 
         const cfg = PROVIDER_CONFIG[setProvider.value];
         if (cfg) setApiKey.placeholder = cfg.placeholder;
+
+        // Clear validation
+        clearKeyError();
     }
 
     setProvider.addEventListener('change', () => {
@@ -192,63 +244,131 @@
         }
     });
 
+    // ─── Inline validation ───────────────────────────────────────────────
+    function showKeyError(msg) {
+        apikeyError.textContent = msg;
+        apikeyError.style.display = '';
+        setApiKey.classList.add('pl-input-error');
+    }
+
+    function clearKeyError() {
+        apikeyError.textContent = '';
+        apikeyError.style.display = 'none';
+        setApiKey.classList.remove('pl-input-error');
+    }
+
+    setApiKey.addEventListener('input', () => clearKeyError());
+
+    // ─── Save ────────────────────────────────────────────────────────────
     btnSave.addEventListener('click', async () => {
         const key = setApiKey.value.trim();
-        if (!key) { showToast('API key is required', 'error'); return; }
 
-        await window.promptlayer.saveSettings({
+        // Validate key length
+        if (!key) {
+            showKeyError('API key is required.');
+            setApiKey.focus();
+            return;
+        }
+        if (key.length < 10) {
+            showKeyError('API key is too short. Check your key.');
+            setApiKey.focus();
+            return;
+        }
+
+        clearKeyError();
+
+        const result = await window.promptlayer.saveSettings({
             provider: setProvider.value,
             apiKey: key,
             model: setModel.value.trim() || 'gpt-4o-mini',
             apiBase: setApiBase.value.trim() || 'https://api.openai.com/v1',
         });
 
-        showToast('Settings saved ✓', 'success');
-        showView(viewMain);
+        if (result.success) {
+            showToast('API Key Saved ✓', 'success');
+
+            // Re-check real stored state
+            await refreshStatus();
+
+            if (isFirstRun && hasValidKey) {
+                isFirstRun = false;
+
+                // Auto-switch to main view
+                showView(viewMain);
+
+                // Show shortcut tooltip
+                const shortcut = result.shortcut || 'Ctrl+Shift+L';
+                tooltipText.innerHTML = `Press <strong>${shortcut}</strong> anytime to enhance prompts.`;
+                tooltip.style.display = '';
+                setTimeout(() => tooltip.classList.add('visible'), 50);
+
+                // Auto-dismiss tooltip
+                setTimeout(() => {
+                    tooltip.classList.remove('visible');
+                    setTimeout(() => { tooltip.style.display = 'none'; }, 300);
+                }, 6000);
+            } else {
+                showView(viewMain);
+            }
+        }
+    });
+
+    // Tooltip close
+    tooltipClose.addEventListener('click', () => {
+        tooltip.classList.remove('visible');
+        setTimeout(() => { tooltip.style.display = 'none'; }, 300);
     });
 
     // ─── Keyboard ────────────────────────────────────────────────────────
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
             if (viewSettings.classList.contains('active')) {
+                if (isFirstRun && !hasValidKey) return; // can't escape first-run
                 showView(viewMain);
             } else {
-                window.promptlayer.closeWindow();
+                window.promptlayer.hide();
             }
         }
     });
 
     // ─── Window Lifecycle ────────────────────────────────────────────────
     window.promptlayer.onShown(async () => {
+        if (isFirstRun) {
+            openSettings();
+            setTimeout(() => setApiKey.focus(), 50);
+            return;
+        }
+
         showView(viewMain);
         resultArea.classList.remove('visible');
 
-        // Auto-capture: read clipboard (may contain text user just selected)
+        // Auto-capture: read clipboard
         try {
             const clip = await window.promptlayer.readClipboard();
             if (clip && clip.trim().length > 0) {
                 input.value = clip.trim();
                 charCount.textContent = input.value.length;
-                btnEnhance.disabled = input.value.length < 3;
+                updateEnhanceButton();
             }
-        } catch (_) { /* no clipboard content */ }
+        } catch (_) { /* no clipboard */ }
 
         setTimeout(() => { input.focus(); input.select(); }, 30);
     });
 
+    // ─── First-run handler ───────────────────────────────────────────────
+    window.promptlayer.onFirstRun(() => {
+        isFirstRun = true;
+        openSettings();
+        setTimeout(() => setApiKey.focus(), 100);
+    });
+
     // ─── Init ────────────────────────────────────────────────────────────
     (async function init() {
-        try {
-            const s = await window.promptlayer.getSettings();
-            if (!s.apiKey) {
-                setStatus('error', 'API key needed');
-                showToast('Set your API key in Settings', 'error');
-            } else {
-                setStatus('ready', 'Ready');
-            }
-            if (s.shortcut) shortcutHint.textContent = s.shortcut;
-        } catch (_) {
-            setStatus('ready', 'Ready');
+        await refreshStatus();
+
+        if (!hasValidKey) {
+            isFirstRun = true;
+            // Don't auto-switch here; wait for first-run event from main
         }
     })();
 

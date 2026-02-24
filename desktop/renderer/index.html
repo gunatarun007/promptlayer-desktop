@@ -108,7 +108,22 @@
 
         <!-- Settings View -->
         <div class="pl-view pl-settings-view" id="view-settings">
-            <div class="pl-settings-header">
+            <!-- Welcome header (first-run only) -->
+            <div class="pl-welcome" id="pl-welcome" style="display: none;">
+                <div class="pl-welcome-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="m12 2 10 6.5-10 6.5L2 8.5Z" />
+                        <path d="m2 15.5 10 6.5 10-6.5" />
+                        <path d="m2 12 10 6.5 10-6.5" />
+                    </svg>
+                </div>
+                <h2 class="pl-welcome-title">Welcome to PromptLayer</h2>
+                <p class="pl-welcome-subtitle">Let's get you set up in 30 seconds.</p>
+            </div>
+
+            <!-- Normal settings header (returning users) -->
+            <div class="pl-settings-header" id="pl-settings-header">
                 <button class="pl-icon-btn" id="btn-back" title="Back">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
                         stroke-linejoin="round">
@@ -132,6 +147,7 @@
                 <label class="pl-label">API Key</label>
                 <input type="password" class="pl-input-field" id="set-apikey" placeholder="sk-..." autocomplete="off"
                     spellcheck="false">
+                <span class="pl-field-error" id="pl-apikey-error"></span>
             </div>
             <div class="pl-field">
                 <label class="pl-label">Model</label>
@@ -160,6 +176,13 @@
             </div>
             <span class="pl-shortcut-hint" id="pl-shortcut-hint">Ctrl+Shift+L</span>
         </div>
+    </div>
+
+    <!-- Shortcut tooltip (shown after first save) -->
+    <div class="pl-tooltip" id="pl-tooltip" style="display: none;">
+        <span class="pl-tooltip-text" id="pl-tooltip-text">Press <strong>Ctrl+Shift+L</strong> anytime to enhance
+            prompts.</span>
+        <button class="pl-tooltip-close" id="pl-tooltip-close">✕</button>
     </div>
 
     <script src="app.js"></script>

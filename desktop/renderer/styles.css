@@ -33,8 +33,11 @@
     --accent: #818CF8;
     --accent-hover: #6366F1;
     --accent-glow: rgba(129, 140, 248, 0.15);
+    --accent-soft: rgba(129, 140, 248, 0.08);
     --success: #34D399;
+    --success-glow: rgba(52, 211, 153, 0.15);
     --error: #F87171;
+    --error-glow: rgba(248, 113, 113, 0.12);
     --warning: #FBBF24;
     --radius: 16px;
     --radius-inner: 10px;
@@ -434,6 +437,63 @@ body {
     color: var(--text);
 }
 
+/* ─── Welcome header (first-run) ─────────────────────────────────────────── */
+
+.pl-welcome {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 18px 16px 12px;
+    animation: welcomeIn 350ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes welcomeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.pl-welcome-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: var(--accent-soft);
+    border: 1px solid rgba(129, 140, 248, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 10px;
+}
+
+.pl-welcome-icon svg {
+    width: 20px;
+    height: 20px;
+    color: var(--accent);
+}
+
+.pl-welcome-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.01em;
+    margin-bottom: 4px;
+}
+
+.pl-welcome-subtitle {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+/* ─── Form Fields ────────────────────────────────────────────────────────── */
+
 .pl-field {
     display: flex;
     flex-direction: column;
@@ -459,13 +519,31 @@ body {
     font-size: 12px;
     padding: 0 10px;
     outline: none;
-    transition: border-color var(--transition);
+    transition: border-color var(--transition), box-shadow var(--transition);
 }
 
 .pl-input-field:focus,
 .pl-select:focus {
     border-color: var(--accent);
     box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+/* Input error state */
+.pl-input-field.pl-input-error {
+    border-color: var(--error);
+    box-shadow: 0 0 0 3px var(--error-glow);
+}
+
+.pl-input-field.pl-input-error:focus {
+    border-color: var(--error);
+    box-shadow: 0 0 0 3px var(--error-glow);
+}
+
+.pl-field-error {
+    font-size: 11px;
+    color: var(--error);
+    min-height: 0;
+    display: none;
 }
 
 .pl-select {
@@ -613,4 +691,56 @@ body {
 .pl-toast.error {
     border-color: var(--error);
     color: var(--error);
+}
+
+/* ─── Shortcut Tooltip ───────────────────────────────────────────────────── */
+
+.pl-tooltip {
+    position: fixed;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-10px);
+    padding: 8px 14px;
+    background: var(--accent-soft);
+    border: 1px solid rgba(129, 140, 248, 0.3);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    z-index: 200;
+    opacity: 0;
+    transition: all 300ms cubic-bezier(0.16, 1, 0.3, 1);
+    pointer-events: none;
+}
+
+.pl-tooltip.visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+    pointer-events: auto;
+}
+
+.pl-tooltip-text {
+    font-size: 11px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.pl-tooltip-text strong {
+    color: var(--accent);
+    font-weight: 600;
+}
+
+.pl-tooltip-close {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 10px;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+    transition: color var(--transition);
+}
+
+.pl-tooltip-close:hover {
+    color: var(--text);
 }
