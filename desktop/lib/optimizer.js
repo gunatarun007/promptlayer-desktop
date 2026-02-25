@@ -33,12 +33,12 @@ Enhancement Strategy:
 
 Return only the optimized version.`;
 
-const INSTRUCTION_MAP = {
-    expand: 'Expand this input into a detailed, comprehensive prompt. Add specificity, context, and structure. Keep the original intent.',
-    clarify: 'Improve the clarity of this prompt. Fix grammar, add punctuation, remove ambiguity, and make it more precise.',
-    advance: 'Elevate this question into an advanced, expert-level query. Add depth, specify constraints, and request detailed analysis.',
-    edge_cases: 'This prompt involves code or technical content. Add edge cases, error handling considerations, and best practices to the request.',
-    enhance: 'Optimize this prompt for maximum clarity, structure, and effectiveness. Preserve the original intent while improving quality.',
+const MODES = {
+    quick_fix: 'Optimize this prompt for clarity and effectiveness without expanding it unnecessarily. Keep it concise and production-ready.',
+    deep_reasoning: 'Rewrite this prompt to force structured step-by-step reasoning and deeper analysis before generating the final answer.',
+    structured: 'Rewrite this prompt so the response must follow a clear structured format (bullet points or JSON if appropriate).',
+    creative: 'Rewrite this prompt to increase creativity, richness, and expressive output while maintaining clarity.',
+    developer: 'Rewrite this prompt with strict constraints, edge cases, and unambiguous instructions suitable for technical implementation.',
 };
 
 const PROVIDER_DEFAULTS = {
@@ -48,16 +48,23 @@ const PROVIDER_DEFAULTS = {
     openrouter: { base: 'https://openrouter.ai/api/v1' },
 };
 
-async function optimizePrompt(rawPrompt, instruction, config) {
+async function optimizePrompt(rawPrompt, options, config) {
     const { provider, apiKey, model, apiBase } = config;
+    const { mode, isOneShot } = options || {};
 
     if (!apiKey) throw new Error('API key not configured. Open settings to add your key.');
     if (!rawPrompt || !rawPrompt.trim()) throw new Error('Please enter some text to optimize.');
 
-    let userMessage = rawPrompt;
-    if (instruction && INSTRUCTION_MAP[instruction]) {
-        userMessage = INSTRUCTION_MAP[instruction] + '\n\nOriginal input:\n' + rawPrompt;
+    let userMessage = '';
+    const modeInstruction = MODES[mode] || MODES.quick_fix;
+
+    userMessage += modeInstruction + '\n\n';
+
+    if (isOneShot) {
+        userMessage += 'ONE-SHOT MODE: Skip deep restructuring. Perform minimal optimization. Output must be short and direct.\n\n';
     }
+
+    userMessage += 'Original input:\n' + rawPrompt;
 
     const base = apiBase || PROVIDER_DEFAULTS[provider]?.base || 'https://api.openai.com/v1';
 
@@ -98,4 +105,4 @@ async function optimizePrompt(rawPrompt, instruction, config) {
     return data.choices[0].message.content.trim();
 }
 
-module.exports = { optimizePrompt, INSTRUCTION_MAP, PROVIDER_DEFAULTS };
+module.exports = { optimizePrompt, MODES, PROVIDER_DEFAULTS };

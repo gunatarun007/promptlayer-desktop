@@ -16,7 +16,9 @@
 
     const input = $('pl-input');
     const charCount = $('pl-charcount');
-    const chipsContainer = $('pl-chips');
+    const modeGrid = $('pl-mode-grid');
+    const oneshotToggle = $('pl-oneshot-toggle');
+    const btnMinimize = $('btn-minimize');
     const btnEnhance = $('btn-enhance');
     const btnEnhanceText = $('btn-enhance-text');
     const resultArea = $('pl-result-area');
@@ -37,6 +39,7 @@
     const setApiKey = $('set-apikey');
     const setModel = $('set-model');
     const setApiBase = $('set-apibase');
+    const setAutostart = $('set-autostart');
     const welcome = $('pl-welcome');
     const settingsHeader = $('pl-settings-header');
     const apikeyError = $('pl-apikey-error');
@@ -113,25 +116,41 @@
         }
     });
 
-    // ─── Chips ───────────────────────────────────────────────────────────
-    chipsContainer.addEventListener('click', (e) => {
-        const chip = e.target.closest('.pl-chip');
-        if (!chip || isProcessing || !hasValidKey) return;
-        const raw = input.value.trim();
-        if (raw.length < 3) return;
-        runOptimization(raw, chip.dataset.instruction);
+    // ─── Modes & Toggles ─────────────────────────────────────────────────
+    let currentMode = 'quick_fix';
+
+    modeGrid.addEventListener('click', (e) => {
+        const btn = e.target.closest('.pl-mode-btn');
+        if (!btn || isProcessing || !hasValidKey) return;
+
+        // Visual update
+        modeGrid.querySelectorAll('.pl-mode-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        // State update
+        currentMode = btn.dataset.mode;
+
+        // Track event securely (fire and forget)
+        window.promptlayer.trackEvent('mode_selected', { mode: currentMode });
     });
+
+    // ─── Minimize ────────────────────────────────────────────────────────
+    if (btnMinimize) {
+        btnMinimize.addEventListener('click', () => {
+            if (window.promptlayer.minimize) window.promptlayer.minimize();
+        });
+    }
 
     // ─── Enhance ─────────────────────────────────────────────────────────
     btnEnhance.addEventListener('click', () => {
         if (isProcessing || !hasValidKey) return;
         const raw = input.value.trim();
         if (raw.length < 3) return;
-        runOptimization(raw, 'enhance');
+        runOptimization(raw, currentMode, oneshotToggle.checked);
     });
 
     // ─── Optimization ────────────────────────────────────────────────────
-    async function runOptimization(text, instruction) {
+    async function runOptimization(text, mode, isOneShot) {
         if (isProcessing) return;
         isProcessing = true;
 
@@ -142,7 +161,7 @@
         resultArea.classList.remove('visible');
 
         try {
-            const result = await window.promptlayer.optimize(text, instruction);
+            const result = await window.promptlayer.optimize(text, mode, isOneShot);
 
             if (result.success && result.data) {
                 optimizedText = result.data;
@@ -150,6 +169,9 @@
                 resultArea.classList.add('visible');
                 setStatus('ready', 'Connected');
                 showToast('Prompt enhanced ✓', 'success');
+
+                // Track successful optimize securely
+                window.promptlayer.trackEvent('enhance_click', { mode, one_shot: isOneShot });
             } else {
                 setStatus('error', result.error || 'Failed');
                 showToast(result.error || 'Optimization failed', 'error');
@@ -187,7 +209,7 @@
 
     btnImprove.addEventListener('click', () => {
         if (!optimizedText || isProcessing) return;
-        runOptimization(optimizedText, 'enhance');
+        runOptimization(optimizedText, currentMode, oneshotToggle.checked);
     });
 
     // ─── View Navigation ─────────────────────────────────────────────────
@@ -227,6 +249,7 @@
         setApiKey.value = s.apiKey || '';
         setModel.value = s.model || 'gpt-4o-mini';
         setApiBase.value = s.apiBase || 'https://api.openai.com/v1';
+        setAutostart.checked = s.autoStart !== false; // Default true
         if (s.shortcut) shortcutHint.textContent = s.shortcut;
 
         const cfg = PROVIDER_CONFIG[setProvider.value];
@@ -282,6 +305,7 @@
             apiKey: key,
             model: setModel.value.trim() || 'gpt-4o-mini',
             apiBase: setApiBase.value.trim() || 'https://api.openai.com/v1',
+            autoStart: setAutostart.checked,
         });
 
         if (result.success) {

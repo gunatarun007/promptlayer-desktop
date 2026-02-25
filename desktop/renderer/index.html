@@ -36,6 +36,12 @@
                         <circle cx="12" cy="12" r="3" />
                     </svg>
                 </button>
+                <button class="pl-icon-btn" id="btn-minimize" title="Minimize">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M5 12h14" />
+                    </svg>
+                </button>
                 <button class="pl-icon-btn" id="btn-close" title="Close (Esc)">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
                         stroke-linejoin="round">
@@ -54,11 +60,22 @@
                 <span class="pl-char-count" id="pl-charcount">0</span>
             </div>
 
-            <div class="pl-chips" id="pl-chips">
-                <button class="pl-chip" data-instruction="enhance"><span class="pl-chip-icon">✧</span> Enhance</button>
-                <button class="pl-chip" data-instruction="expand"><span class="pl-chip-icon">↗</span> Expand</button>
-                <button class="pl-chip" data-instruction="clarify"><span class="pl-chip-icon">✦</span> Clarity</button>
-                <button class="pl-chip" data-instruction="advance"><span class="pl-chip-icon">◆</span> Advanced</button>
+            <div class="pl-mode-selector">
+                <div class="pl-mode-label">Prompt Mode</div>
+                <div class="pl-mode-grid" id="pl-mode-grid">
+                    <button class="pl-mode-btn active" data-mode="quick_fix">Quick Fix</button>
+                    <button class="pl-mode-btn" data-mode="deep_reasoning">Deep Reasoning</button>
+                    <button class="pl-mode-btn" data-mode="structured">Structured Output</button>
+                    <button class="pl-mode-btn" data-mode="creative">Creative Boost</button>
+                    <button class="pl-mode-btn" data-mode="developer">Developer Precision</button>
+                </div>
+                <div class="pl-oneshot">
+                    <label class="pl-checkbox-label">
+                        <input type="checkbox" id="pl-oneshot-toggle">
+                        <span class="pl-checkbox-box"></span>
+                        One-Shot Mode (Minimal Optimization)
+                    </label>
+                </div>
             </div>
 
             <button class="pl-btn pl-btn-primary" id="btn-enhance" disabled>
@@ -157,6 +174,14 @@
                 <label class="pl-label">API Base URL</label>
                 <input type="text" class="pl-input-field" id="set-apibase" placeholder="https://api.openai.com/v1"
                     spellcheck="false">
+            </div>
+
+            <div class="pl-field" style="margin-top: 4px; padding-top: 8px;">
+                <label class="pl-checkbox-label">
+                    <input type="checkbox" id="set-autostart">
+                    <span class="pl-checkbox-box"></span>
+                    Launch PromptLayer at Startup
+                </label>
             </div>
 
             <button class="pl-btn pl-btn-primary pl-btn-full" id="btn-save">

@@ -204,45 +204,104 @@ body {
     pointer-events: none;
 }
 
-/* ─── Chip Bar ───────────────────────────────────────────────────────────── */
+/* ─── Mode Selector ────────────────────────────────────────────────────────── */
 
-.pl-chips {
+.pl-mode-selector {
     display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
+    flex-direction: column;
+    gap: 8px;
 }
 
-.pl-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 4px 10px;
+.pl-mode-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.pl-mode-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+}
+
+.pl-mode-btn {
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 20px;
+    border-radius: var(--radius-sm);
     color: var(--text-secondary);
     font-family: var(--font);
     font-size: 11px;
     font-weight: 500;
+    padding: 8px;
     cursor: pointer;
+    text-align: left;
     transition: var(--transition);
-    white-space: nowrap;
 }
 
-.pl-chip:hover {
+.pl-mode-btn:hover {
     background: var(--surface-hover);
     color: var(--text);
+}
+
+.pl-mode-btn.active {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+/* One-shot toggle */
+.pl-oneshot {
+    margin-top: 4px;
+}
+
+.pl-checkbox-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    user-select: none;
+    transition: color var(--transition);
+}
+
+.pl-checkbox-label:hover {
+    color: var(--text);
+}
+
+.pl-checkbox-label input {
+    display: none;
+}
+
+.pl-checkbox-box {
+    width: 14px;
+    height: 14px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition);
+}
+
+.pl-checkbox-label input:checked+.pl-checkbox-box {
+    background: var(--accent);
     border-color: var(--accent);
 }
 
-.pl-chip:active {
-    transform: scale(0.96);
+.pl-checkbox-label input:checked+.pl-checkbox-box::after {
+    content: "";
+    width: 4px;
+    height: 8px;
+    border: solid transparent;
+    border-color: var(--bg);
+    border-width: 0 1.5px 1.5px 0;
+    transform: rotate(45deg) translateY(-1px);
 }
 
-.pl-chip-icon {
-    font-size: 12px;
-    line-height: 1;
-}
 
 /* ─── Buttons ────────────────────────────────────────────────────────────── */
 

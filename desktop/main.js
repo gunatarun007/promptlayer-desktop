@@ -29,6 +29,7 @@ app.commandLine.appendSwitch('gpu-disk-cache-dir', path.join(localDataDir, 'GpuC
 
 const Store = require('electron-store');
 const { optimizePrompt } = require('./lib/optimizer');
+const AnalyticsService = require('./lib/analytics');
 
 const IS_DEV = !app.isPackaged;
 
@@ -47,6 +48,7 @@ const store = new Store({
         model: 'gpt-4o-mini',
         apiBase: 'https://api.openai.com/v1',
         shortcut: DEFAULT_SHORTCUT,
+        autoStart: true,
     }
 });
 
@@ -60,6 +62,7 @@ if (storedShortcut === 'Ctrl+Shift+Space' || storedShortcut === 'CommandOrContro
 let mainWindow = null;
 let tray = null;
 let activeShortcut = '';
+const analytics = new AnalyticsService(store);
 
 const WIN_W = 420;
 const WIN_H = 520;
@@ -156,6 +159,9 @@ function createTray() {
 function showWindow() {
     if (!mainWindow) createWindow();
 
+    // Event Intelligence: Trace opening (debounce handled inside service)
+    analytics.track('app_open');
+
     const cursor = screen.getCursorScreenPoint();
     const display = screen.getDisplayNearestPoint(cursor);
     const { x, y, width, height } = display.workArea;
@@ -213,7 +219,7 @@ function registerShortcut() {
 }
 
 // ─── IPC: Optimization ─────────────────────────────────────────────────────
-ipcMain.handle('optimize', async (_e, { rawPrompt, instruction }) => {
+ipcMain.handle('optimize', async (_e, { rawPrompt, mode, isOneShot }) => {
     try {
         const config = {
             provider: store.get('provider'),
@@ -221,7 +227,7 @@ ipcMain.handle('optimize', async (_e, { rawPrompt, instruction }) => {
             model: store.get('model'),
             apiBase: store.get('apiBase'),
         };
-        const result = await optimizePrompt(rawPrompt, instruction, config);
+        const result = await optimizePrompt(rawPrompt, { mode, isOneShot }, config);
         return { success: true, data: result };
     } catch (err) {
         return { success: false, error: err.message };
@@ -258,6 +264,7 @@ ipcMain.handle('get-settings', async () => ({
     model: store.get('model'),
     apiBase: store.get('apiBase'),
     shortcut: activeShortcut || store.get('shortcut'),
+    autoStart: store.get('autoStart', true),
 }));
 
 ipcMain.handle('save-settings', async (_e, s) => {
@@ -267,6 +274,10 @@ ipcMain.handle('save-settings', async (_e, s) => {
     if (s.apiBase !== undefined) store.set('apiBase', s.apiBase);
     if (s.shortcut !== undefined) {
         store.set('shortcut', s.shortcut);
+    }
+    if (s.autoStart !== undefined) {
+        store.set('autoStart', s.autoStart);
+        app.setLoginItemSettings({ openAtLogin: s.autoStart });
     }
 
     // If API key was just saved and shortcut isn't registered, register it now
@@ -279,6 +290,12 @@ ipcMain.handle('save-settings', async (_e, s) => {
 
 ipcMain.on('window:close', () => hideWindow());
 ipcMain.on('window:hide', () => hideWindow());
+ipcMain.on('window:minimize', () => { if (mainWindow) mainWindow.minimize(); });
+
+// ─── IPC: Analytics ──────────────────────────────────────────────────────────
+ipcMain.on('track-event', (_e, { event, metadata }) => {
+    analytics.track(event, metadata);
+});
 
 // ─── Keystroke simulation (PowerShell-based, no native deps) ────────────────
 function simulatePaste() {
@@ -305,6 +322,11 @@ function sleep(ms) {
 
 // ─── App Lifecycle ──────────────────────────────────────────────────────────
 app.whenReady().then(() => {
+
+    app.setLoginItemSettings({
+        openAtLogin: store.get('autoStart', true)
+    });
+
     createWindow();
     createTray();
 
